@@ -22,6 +22,7 @@ app.add_middleware(
 
 class PredictionResponse(BaseModel):
     symbol: str
+    company_name: str
     currency: str
     direction: str
     confidence: float
@@ -51,16 +52,22 @@ def predict(symbol: str):
         if df is None or df.empty:
             raise HTTPException(status_code=404, detail="Stock not found")
             
-        # Get Currency Info
+        # Get Ticker Info
         ticker = yf.Ticker(symbol)
+        info = {}
         try:
-            # Try fast_info first (faster)
-            currency = ticker.fast_info.currency
+            info = ticker.info
         except:
-            try:
-                currency = ticker.info.get('currency', 'USD')
-            except:
-                currency = 'USD' # Default
+            pass
+            
+        # 1. Get Currency (Robust Check)
+        if symbol.endswith('.NS') or symbol.endswith('.BO'):
+            currency = 'INR'
+        else:
+            currency = info.get('currency', 'USD')
+
+        # 2. Get Company Name
+        company_name = info.get('shortName') or info.get('longName') or symbol
                 
     except Exception as e:
         import traceback
@@ -105,6 +112,7 @@ def predict(symbol: str):
 
     return {
         "symbol": symbol,
+        "company_name": company_name,
         "currency": currency,
         "direction": result["direction"],
         "confidence": result["confidence"],
