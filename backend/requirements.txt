@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pandas
+numpy<2.0.0
+yfinance
+scikit-learn
+lightgbm
+shap
+joblib
+optuna
+pandas-ta
+matplotlib
+plotly
+pyarrow
