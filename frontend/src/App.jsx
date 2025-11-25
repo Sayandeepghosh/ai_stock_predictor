@@ -43,7 +43,7 @@ function App() {
 
     const handleSearch = async (e, overrideQuery = null) => {
         if (e) e.preventDefault();
-        const searchQuery = overrideQuery || query;
+        let searchQuery = overrideQuery || query;
 
         if (!searchQuery || !searchQuery.trim()) {
             setIsShaking(true);
@@ -58,6 +58,28 @@ function App() {
         setShowSuggestions(false);
 
         try {
+            // If manual entry (no override), try to resolve symbol first
+            if (!overrideQuery) {
+                console.log("Resolving symbol for:", searchQuery);
+                try {
+                    const results = await searchStocks(searchQuery);
+                    if (results && results.length > 0) {
+                        // 1. Try exact symbol match
+                        const exactMatch = results.find(r => r.symbol.toUpperCase() === searchQuery.toUpperCase());
+                        if (exactMatch) {
+                            searchQuery = exactMatch.symbol;
+                        } else {
+                            // 2. Default to first result (most relevant)
+                            searchQuery = results[0].symbol;
+                        }
+                        console.log("Resolved to:", searchQuery);
+                        setQuery(searchQuery); // Update input to show resolved symbol
+                    }
+                } catch (resolveErr) {
+                    console.warn("Symbol resolution failed, using raw query:", resolveErr);
+                }
+            }
+
             const data = await getPrediction(searchQuery);
             console.log("Received prediction data:", data);
             setPrediction(data);
@@ -224,12 +246,16 @@ function App() {
                                         <Zap size={100} />
                                     </div>
 
-                                    <div className="flex justify-between items-start mb-8">
-                                        <div>
-                                            <h2 className="text-4xl font-bold tracking-tight">{prediction.symbol}</h2>
-                                            <p className="text-slate-400 mt-1">Real-time Analysis</p>
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                                        <div className="flex-1 min-w-0">
+                                            <h2 className="text-3xl md:text-4xl font-bold tracking-tight truncate" title={prediction.symbol}>
+                                                {prediction.symbol}
+                                            </h2>
+                                            <p className="text-slate-400 mt-1 text-lg truncate" title={prediction.company_name}>
+                                                {prediction.company_name || 'Real-time Analysis'}
+                                            </p>
                                         </div>
-                                        <div className="text-right">
+                                        <div className="text-left md:text-right whitespace-nowrap">
                                             <p className="text-3xl font-mono font-bold">
                                                 {prediction.currency === 'INR' ? '₹' : '$'}{prediction.current_price.toFixed(2)}
                                             </p>

@@ -78,10 +78,12 @@ const calculateRSI = (data, period = 14) => {
 const fetchRealData = async (symbol) => {
     const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=3mo`;
 
-    // List of proxies to try
+    // List of proxies to try (in order of reliability)
     const proxies = [
         'https://corsproxy.io/?',
-        'https://api.allorigins.win/raw?url='
+        'https://api.allorigins.win/raw?url=',
+        'https://thingproxy.freeboard.io/fetch/',
+        'https://api.codetabs.com/v1/proxy?quest='
     ];
 
     for (const proxy of proxies) {
@@ -89,9 +91,21 @@ const fetchRealData = async (symbol) => {
             console.log(`Attempting fetch via ${proxy}...`);
             const response = await axios.get(proxy + encodeURIComponent(targetUrl));
 
-            const result = response.data.chart.result[0];
+            // Handle different proxy response structures
+            const data = response.data;
+            const chartResult = data.chart ? data.chart.result : data.result; // Some proxies unwrap differently
+
+            if (!chartResult || !chartResult[0]) {
+                throw new Error("Invalid response structure");
+            }
+
+            const result = chartResult[0];
             const quote = result.indicators.quote[0];
             const timestamps = result.timestamp;
+
+            if (!timestamps || !quote || !quote.close) {
+                throw new Error("Missing chart data");
+            }
 
             const chartData = timestamps.map((ts, i) => ({
                 time: new Date(ts * 1000).toISOString().split('T')[0],
@@ -299,9 +313,15 @@ export const getPrediction = async (symbol) => {
         const response = await axios.get(`${API_URL}/predict/${symbol}`);
         return response.data;
     } catch (error) {
-        console.error("Backend prediction failed (likely sleeping or error), falling back to Client-Side AI:", error);
+        // 1. If it's a 404 (Stock Not Found), throw immediately. Do NOT mock.
+        if (error.response && error.response.status === 404) {
+            console.error("Stock not found in backend.");
+            throw new Error(`Stock "${symbol}" not found.`);
+        }
 
-        // Fallback to Client-Side "Smart" Logic
+        console.error("Backend prediction failed (likely sleeping or network error), falling back to Client-Side AI:", error);
+
+        // 2. Fallback to Client-Side "Smart" Logic (Yahoo Finance via Proxy)
         console.log("Attempting to fetch real data for client-side analysis...");
         const realData = await fetchRealData(symbol);
 
@@ -309,8 +329,10 @@ export const getPrediction = async (symbol) => {
             console.log("Real data fetched! Running client-side analysis...");
             return generatePredictionFromRealData(symbol, realData);
         } else {
-            console.log("Real fetch failed, using deterministic mock.");
-            return generateMockPrediction(symbol);
+            // 3. If Real Data also fails, it likely doesn't exist.
+            // Do NOT generate random mock data for production.
+            console.error("Real fetch failed. Stock likely invalid.");
+            throw new Error(`Could not fetch data for "${symbol}". Please check the ticker.`);
         }
     }
 };
