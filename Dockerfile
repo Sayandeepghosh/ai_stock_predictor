@@ -1,6 +1,11 @@
 # Use Python 3.10
 FROM python:3.10
 
+# Install system dependencies (libgomp1 is required for LightGBM)
+RUN apt-get update && apt-get install -y \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Set working directory
 WORKDIR /app
 
