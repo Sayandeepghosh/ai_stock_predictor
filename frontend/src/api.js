@@ -1,9 +1,11 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8000/api';
+const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:8000/api'
+    : 'https://sayandeepghosh-ai-stock-predictor-backend.hf.space/api';
 
 // Detect if running on GitHub Pages or any non-localhost environment
-const IS_DEMO_MODE = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+const IS_DEMO_MODE = false; // Disabled: We now have a real backend!
 
 // Mock Data for Search (Fallback)
 const MOCK_STOCKS = [
@@ -257,9 +259,14 @@ const generateMockPrediction = (symbol) => {
 };
 
 export const searchStocks = async (query) => {
-    if (IS_DEMO_MODE) {
+    try {
+        const response = await axios.get(`${API_URL}/search?query=${query}`);
+        return response.data;
+    } catch (error) {
+        console.warn("Backend search failed, falling back to Yahoo Finance/Static list:", error);
+
+        // Fallback to Yahoo Finance Autocomplete via CORS Proxy
         try {
-            // Use Yahoo Finance Autocomplete API via CORS Proxy
             const proxyUrl = 'https://corsproxy.io/?';
             const targetUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=10&newsCount=0&enableFuzzyQuery=false&quotesQueryId=tss_match_phrase_query`;
 
@@ -274,45 +281,36 @@ export const searchStocks = async (query) => {
                         exchange: quote.exchange
                     }));
             }
-        } catch (error) {
-            console.error("Yahoo Search API failed, falling back to static list:", error);
+        } catch (yahooError) {
+            console.error("Yahoo Search API also failed:", yahooError);
         }
 
-        // Fallback to static list if API fails
+        // Final fallback to static list
         return MOCK_STOCKS.filter(s =>
             s.symbol.toLowerCase().includes(query.toLowerCase()) ||
             s.name.toLowerCase().includes(query.toLowerCase())
         );
     }
-
-    try {
-        const response = await axios.get(`${API_URL}/search?query=${query}`);
-        return response.data;
-    } catch (error) {
-        console.error("Error searching stocks:", error);
-        return [];
-    }
 };
 
 export const getPrediction = async (symbol) => {
-    if (IS_DEMO_MODE) {
-        console.log("DEMO MODE: Attempting to fetch real data...");
-        const realData = await fetchRealData(symbol);
-
-        if (realData) {
-            console.log("DEMO MODE: Real data fetched!", realData);
-            return generatePredictionFromRealData(symbol, realData);
-        } else {
-            console.log("DEMO MODE: Real fetch failed, using mock.");
-            return generateMockPrediction(symbol);
-        }
-    }
-
     try {
+        console.log(`Fetching prediction for ${symbol} from ${API_URL}...`);
         const response = await axios.get(`${API_URL}/predict/${symbol}`);
         return response.data;
     } catch (error) {
-        console.error("Error fetching prediction:", error);
-        throw error.response ? error.response.data.detail : error;
+        console.error("Backend prediction failed (likely sleeping or error), falling back to Client-Side AI:", error);
+
+        // Fallback to Client-Side "Smart" Logic
+        console.log("Attempting to fetch real data for client-side analysis...");
+        const realData = await fetchRealData(symbol);
+
+        if (realData) {
+            console.log("Real data fetched! Running client-side analysis...");
+            return generatePredictionFromRealData(symbol, realData);
+        } else {
+            console.log("Real fetch failed, using deterministic mock.");
+            return generateMockPrediction(symbol);
+        }
     }
 };
