@@ -12,3 +12,4 @@ pandas-ta
 matplotlib
 plotly
 pyarrow
+gunicorn

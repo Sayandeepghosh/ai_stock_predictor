@@ -147,7 +147,7 @@ function App() {
                                 value={query}
                                 onChange={handleSearchChange}
                                 onFocus={() => query.length > 1 && setShowSuggestions(true)}
-                                placeholder="Search ticker (e.g. NVDA, RELIANCE.NS)..."
+                                placeholder="Search ticker or company name (e.g. NVIDIA, Reliance)..."
                                 className="w-full bg-transparent text-xl py-5 px-4 focus:outline-none placeholder:text-slate-600"
                             />
                             <button
